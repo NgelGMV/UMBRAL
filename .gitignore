@@ -1,0 +1,41 @@
+# Unity: carpetas que el editor regenera
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+
+# IDE y proyectos generados
+.vs/
+.vscode/
+.idea/
+*.csproj
+*.sln
+*.slnx
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+
+# Builds
+*.apk
+*.aab
+*.unitypackage
+*.app
+crashlytics-build.properties
+
+# Blender: respaldos automaticos
+*.blend1
+*.blend2
+
+# Capturas de prueba y otros
+/Capturas/
+/.plastic/
+/ignore.conf
+.DS_Store
+Thumbs.db
