@@ -255,6 +255,7 @@ MonoBehaviour:
   cajon: {fileID: 6482981432593476584}
   llave: {fileID: 1339501545592332922}
   contieneLlave: 0
+  zona: 0
   recorrido: 0.28
   sonido: {fileID: 8442232850927864611}
   sonidoLlave: {fileID: 8300000, guid: 51698e5641e7b3d4c88f3140d0d85c55, type: 3}

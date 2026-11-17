@@ -1,17 +1,22 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 
-/// <summary>Interfaz en pantalla. Se construye por código: aviso de interacción, contador de puertas, llave y pantalla final.</summary>
+/// <summary>
+/// Interfaz en pantalla, construida por código: aviso de interacción, pistas, contador de puertas, habitación actual,
+/// inventario, telón de entrada, pausa y las pantallas de derrota y de victoria.
+/// </summary>
 [DefaultExecutionOrder(-90)]
 public class HudJuego : MonoBehaviour
 {
     public static HudJuego I { get; private set; }
 
-    Text aviso, puertas, llave, titulo, subtitulo, pista, piso, textoTelon;
+    Text aviso, pista, puertas, inventario, cuarto, textoTelon;
+    Text tituloDerrota, textoDerrota, datosVictoria;
     Image telon;
-    float pistaHasta;
-    GameObject panelFinal;
+    GameObject panelDerrota, panelVictoria, panelPausa;
     string avisoActual = null;
+    float pistaHasta;
 
     void Awake()
     {
@@ -27,46 +32,75 @@ public class HudJuego : MonoBehaviour
         Ajustar(mira.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(6, 6));
 
         aviso = NuevoTexto("Aviso", 40, TextAnchor.MiddleCenter, transform);
-        Ajustar(aviso.rectTransform, new Vector2(0.5f, 0f), new Vector2(0, 190), new Vector2(1400, 70));
+        Ajustar(aviso.rectTransform, new Vector2(0.5f, 0f), new Vector2(0, 190), new Vector2(1700, 70));
+
+        pista = NuevoTexto("Pista", 32, TextAnchor.MiddleCenter, transform);
+        pista.color = new Color(1f, 1f, 1f, 0f);
+        Ajustar(pista.rectTransform, new Vector2(0.5f, 1f), new Vector2(0, -150), new Vector2(1800, 60));
 
         puertas = NuevoTexto("Puertas", 34, TextAnchor.UpperLeft, transform);
         Ajustar(puertas.rectTransform, new Vector2(0f, 1f), new Vector2(340, -60), new Vector2(600, 50));
 
-        llave = NuevoTexto("Llave", 34, TextAnchor.UpperLeft, transform);
-        llave.color = new Color(0.95f, 0.78f, 0.35f);
-        Ajustar(llave.rectTransform, new Vector2(0f, 1f), new Vector2(340, -108), new Vector2(600, 50));
+        inventario = NuevoTexto("Inventario", 34, TextAnchor.UpperLeft, transform);
+        inventario.color = new Color(0.95f, 0.78f, 0.35f);
+        Ajustar(inventario.rectTransform, new Vector2(0f, 1f), new Vector2(340, -108), new Vector2(600, 50));
 
-        pista = NuevoTexto("Pista", 32, TextAnchor.MiddleCenter, transform);
-        pista.color = new Color(1f, 1f, 1f, 0f);
-        Ajustar(pista.rectTransform, new Vector2(0.5f, 1f), new Vector2(0, -150), new Vector2(1600, 60));
+        cuarto = NuevoTexto("Cuarto", 34, TextAnchor.UpperRight, transform);
+        Ajustar(cuarto.rectTransform, new Vector2(1f, 1f), new Vector2(-340, -60), new Vector2(600, 50));
 
-        piso = NuevoTexto("Piso", 34, TextAnchor.UpperRight, transform);
-        Ajustar(piso.rectTransform, new Vector2(1f, 1f), new Vector2(-340, -60), new Vector2(600, 50));
+        // Pausa
+        var pausa = Panel("PanelPausa", new Color(0f, 0f, 0f, 0.78f), transform);
+        panelPausa = pausa.gameObject;
+        Ajustar(NuevoTexto("Titulo", 96, TextAnchor.MiddleCenter, pausa.transform).rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, 90), new Vector2(1700, 140));
+        pausa.transform.Find("Titulo").GetComponent<Text>().text = "PAUSA";
+        var op = NuevoTexto("Opciones", 40, TextAnchor.UpperCenter, pausa.transform);
+        Ajustar(op.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, -70), new Vector2(1700, 120));
+        op.text = "Esc: continuar        M: menú principal";
+        panelPausa.SetActive(false);
 
-        // Telón negro para la entrada y la salida de cada piso
-        telon = NuevaImagen("Telon", new Color(0f, 0f, 0f, 0f), transform);
-        telon.rectTransform.anchorMin = Vector2.zero;
-        telon.rectTransform.anchorMax = Vector2.one;
-        telon.rectTransform.offsetMin = Vector2.zero;
-        telon.rectTransform.offsetMax = Vector2.zero;
+        // Telón negro para la entrada y la salida
+        telon = Panel("Telon", new Color(0f, 0f, 0f, 0f), transform);
         textoTelon = NuevoTexto("TextoTelon", 110, TextAnchor.MiddleCenter, telon.transform);
         Ajustar(textoTelon.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1700, 160));
         textoTelon.color = new Color(1f, 1f, 1f, 0f);
 
-        var fondo = NuevaImagen("PanelFinal", new Color(0f, 0f, 0f, 0.86f), transform);
-        fondo.rectTransform.anchorMin = Vector2.zero;
-        fondo.rectTransform.anchorMax = Vector2.one;
-        fondo.rectTransform.offsetMin = Vector2.zero;
-        fondo.rectTransform.offsetMax = Vector2.zero;
-        panelFinal = fondo.gameObject;
-        titulo = NuevoTexto("Titulo", 96, TextAnchor.MiddleCenter, fondo.transform);
-        Ajustar(titulo.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, 90), new Vector2(1700, 140));
-        subtitulo = NuevoTexto("Subtitulo", 40, TextAnchor.UpperCenter, fondo.transform);
-        Ajustar(subtitulo.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, -90), new Vector2(1700, 220));
-        panelFinal.SetActive(false);
+        // Derrota
+        var derrota = Panel("PanelDerrota", new Color(0f, 0f, 0f, 0.86f), transform);
+        panelDerrota = derrota.gameObject;
+        tituloDerrota = NuevoTexto("Titulo", 96, TextAnchor.MiddleCenter, derrota.transform);
+        tituloDerrota.color = new Color(0.85f, 0.12f, 0.1f);
+        Ajustar(tituloDerrota.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, 110), new Vector2(1700, 140));
+        textoDerrota = NuevoTexto("Texto", 38, TextAnchor.UpperCenter, derrota.transform);
+        Ajustar(textoDerrota.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, -90), new Vector2(1700, 260));
+        panelDerrota.SetActive(false);
 
-        FijarPuertas(0);
-        FijarLlave(false);
+        // Victoria
+        var victoria = Panel("PanelVictoria", Color.black, transform);
+        panelVictoria = victoria.gameObject;
+        var tv = NuevoTexto("Titulo", 130, TextAnchor.MiddleCenter, victoria.transform);
+        tv.text = "ESCAPASTE";
+        tv.color = new Color(0.95f, 0.82f, 0.45f);
+        Ajustar(tv.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, 290), new Vector2(1700, 170));
+        var sv = NuevoTexto("Subtitulo", 44, TextAnchor.MiddleCenter, victoria.transform);
+        sv.text = "Cruzaste las diez puertas y saliste del hotel";
+        Ajustar(sv.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, 170), new Vector2(1700, 70));
+        var linea = NuevaImagen("Linea", new Color(0.95f, 0.82f, 0.45f, 0.6f), victoria.transform);
+        Ajustar(linea.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, 110), new Vector2(700, 3));
+        datosVictoria = NuevoTexto("Datos", 46, TextAnchor.UpperCenter, victoria.transform);
+        datosVictoria.lineSpacing = 1.35f;
+        Ajustar(datosVictoria.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, -60), new Vector2(1700, 280));
+        var ov = NuevoTexto("Opciones", 38, TextAnchor.MiddleCenter, victoria.transform);
+        ov.text = "Enter: jugar de nuevo        M: menú principal";
+        Ajustar(ov.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, -300), new Vector2(1700, 60));
+        var cv = NuevoTexto("Creditos", 28, TextAnchor.MiddleCenter, victoria.transform);
+        cv.text = "UMBRAL    Angel Márquez y Eriol Tuñón    Animación y Producción Audiovisual, FISC-UTP";
+        cv.color = new Color(1f, 1f, 1f, 0.6f);
+        Ajustar(cv.rectTransform, new Vector2(0.5f, 0f), new Vector2(0, 70), new Vector2(1800, 50));
+        panelVictoria.SetActive(false);
+
+        FijarPuertas(0, 10);
+        FijarInventario(false, 0);
+        FijarCuarto(1, 10);
         MostrarAviso("");
     }
 
@@ -90,15 +124,25 @@ public class HudJuego : MonoBehaviour
         aviso.text = texto;
     }
 
-    public void FijarPiso(int n, int total) { piso.text = "Piso " + n + " / " + total; }
+    public void FijarPuertas(int n, int total) { puertas.text = "Puertas: " + n + " / " + total; }
+    public void FijarCuarto(int n, int total) { cuarto.text = "Habitación " + n + " / " + total; }
 
-    /// <summary>Empieza en negro con el nombre del piso y se aclara.</summary>
-    public void AbrirTelon(string texto) { textoTelon.text = texto; StartCoroutine(Telon(1f, 0f, 0.7f, 1.6f)); }
+    public void FijarInventario(bool llave, int fusibles)
+    {
+        string s = llave ? "Llave" : "";
+        if (fusibles > 0) s += (s.Length > 0 ? "    " : "") + "Fusibles: " + fusibles;
+        inventario.text = s;
+    }
 
-    /// <summary>Oscurece la pantalla y muestra el nombre del piso siguiente.</summary>
-    public void CerrarTelon(string texto) { textoTelon.text = texto; StartCoroutine(Telon(0f, 1f, 0f, 0.8f)); }
+    public void MostrarPausa(bool visible) { panelPausa.SetActive(visible); }
 
-    System.Collections.IEnumerator Telon(float desde, float hasta, float espera, float duracion)
+    /// <summary>Empieza en negro con un título y se aclara.</summary>
+    public void AbrirTelon(string texto) { textoTelon.text = texto; StartCoroutine(Telon(1f, 0f, 0.9f, 1.6f)); }
+
+    /// <summary>Oscurece la pantalla.</summary>
+    public void CerrarTelon(string texto) { textoTelon.text = texto; StartCoroutine(Telon(0f, 1f, 0f, 0.9f)); }
+
+    IEnumerator Telon(float desde, float hasta, float espera, float duracion)
     {
         FijarTelon(desde);
         float t = 0f;
@@ -119,17 +163,24 @@ public class HudJuego : MonoBehaviour
         textoTelon.color = new Color(1f, 1f, 1f, a);
     }
 
-    public void FijarPuertas(int n) { puertas.text = "Puertas: " + n; }
-    public void FijarLlave(bool tiene) { llave.text = tiene ? "Llave" : ""; }
-
-    public void MostrarFinal(string t, string s)
+    public void MostrarDerrota(string titulo, string texto)
     {
-        titulo.text = t;
-        subtitulo.text = s;
-        panelFinal.SetActive(true);
+        tituloDerrota.text = titulo;
+        textoDerrota.text = texto;
+        panelDerrota.SetActive(true);
     }
 
-    static Text NuevoTexto(string nombre, int tam, TextAnchor ancla, Transform padre)
+    public void MostrarVictoria(float segundos, int puertasAbiertas, int total, int vecesAtrapado)
+    {
+        int s = Mathf.FloorToInt(segundos);
+        datosVictoria.text = "Tiempo: " + (s / 60).ToString("00") + ":" + (s % 60).ToString("00")
+            + "\nPuertas abiertas: " + puertasAbiertas + " de " + total
+            + "\nVeces que te atrapó el espectro: " + vecesAtrapado;
+        panelVictoria.SetActive(true);
+    }
+
+    // ------------------------------------------------------------------ utilidades de interfaz (las usa también el menú)
+    public static Text NuevoTexto(string nombre, int tam, TextAnchor ancla, Transform padre)
     {
         var go = new GameObject(nombre, typeof(RectTransform));
         go.transform.SetParent(padre, false);
@@ -147,7 +198,7 @@ public class HudJuego : MonoBehaviour
         return t;
     }
 
-    static Image NuevaImagen(string nombre, Color color, Transform padre)
+    public static Image NuevaImagen(string nombre, Color color, Transform padre)
     {
         var go = new GameObject(nombre, typeof(RectTransform));
         go.transform.SetParent(padre, false);
@@ -157,7 +208,18 @@ public class HudJuego : MonoBehaviour
         return img;
     }
 
-    static void Ajustar(RectTransform r, Vector2 ancla, Vector2 pos, Vector2 tam)
+    /// <summary>Imagen que cubre toda la pantalla.</summary>
+    public static Image Panel(string nombre, Color color, Transform padre)
+    {
+        var img = NuevaImagen(nombre, color, padre);
+        img.rectTransform.anchorMin = Vector2.zero;
+        img.rectTransform.anchorMax = Vector2.one;
+        img.rectTransform.offsetMin = Vector2.zero;
+        img.rectTransform.offsetMax = Vector2.zero;
+        return img;
+    }
+
+    public static void Ajustar(RectTransform r, Vector2 ancla, Vector2 pos, Vector2 tam)
     {
         r.anchorMin = ancla;
         r.anchorMax = ancla;

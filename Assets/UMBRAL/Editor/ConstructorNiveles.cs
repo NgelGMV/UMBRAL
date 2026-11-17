@@ -7,10 +7,10 @@ using UnityEngine;
 using UnityEngine.Rendering;
 
 /// <summary>
-/// Arma los 10 pisos del hotel con el kit modular de Blender. Rejilla de 1 m, huella de 20 x 40 m por piso.
-/// Menú UMBRAL > 1. Preparar materiales y prefabs  /  UMBRAL > 2. Construir los 10 niveles.
+/// Arma el juego con el kit modular de Blender: la escena del menú y el hotel, un solo mapa de 20 x 40 m
+/// con 10 habitaciones encadenadas en zigzag (rejilla de 1 m).
+/// Menú UMBRAL > 1. Preparar materiales y prefabs  /  UMBRAL > 2. Construir el juego.
 /// Coordenadas del plano: X del plano = X de Unity, Y del plano = Z de Unity.
-/// El piso 1 sigue el plano del primer avance; los demás lo varían con las opciones de la tabla NIVELES.
 /// </summary>
 public static class ConstructorNiveles
 {
@@ -20,7 +20,8 @@ public static class ConstructorNiveles
     const string DIR_TEX = "Assets/UMBRAL/Textures/";
     const string DIR_AUDIO = "Assets/UMBRAL/Audio/";
     const string DIR_ESCENAS = "Assets/UMBRAL/Scenes/";
-    static string Escena(int n) { return DIR_ESCENAS + "Nivel" + n.ToString("00") + ".unity"; }
+    const string ESCENA_MENU = DIR_ESCENAS + "Menu.unity";
+    const string ESCENA_HOTEL = DIR_ESCENAS + "Hotel.unity";
 
     // nombre -> r, g, b (lineal, igual que en Blender), metálico, suavidad, emisión
     static readonly Dictionary<string, float[]> MATS = new Dictionary<string, float[]>
@@ -265,6 +266,7 @@ public static class ConstructorNiveles
         puerta.puntoFoco = Vacio("Foco", r.transform, new Vector3(0.6f, 1.2f, 0f));
         puerta.sonido = Audio(r, "puerta_abrir");
         puerta.sonidoCerrada = Clip("puerta_cerrada");
+        puerta.sonidoDesbloqueo = Clip("desbloqueo");
         Guardar(r);
 
         // Clóset
@@ -350,68 +352,142 @@ public static class ConstructorNiveles
         vis.luzOjos = Luz(m.transform, new Vector3(0f, 2.5f, 0.02f), new Color(1f, 0.90f, 0.68f), 2.4f, 6.5f);
         vis.luzOjos.gameObject.name = "LuzOjos";
         Guardar(r);
-    }
 
-    // ------------------------------------------------------------------ niveles
-    public const int TOTAL_NIVELES = 10;
+        // --- muebles del mapa de 10 habitaciones
+        r = new GameObject("PRP_Estante"); Modelo(r.name, r.transform); Caja(r, new Vector3(0f, 1f, 0f), new Vector3(1.6f, 2f, 0.4f)); Guardar(r, true);
+        r = new GameObject("PRP_Mesa"); Modelo(r.name, r.transform); Caja(r, new Vector3(0f, 0.39f, 0f), new Vector3(1.6f, 0.78f, 0.8f)); Guardar(r, true);
+        r = new GameObject("PRP_Caja"); Modelo(r.name, r.transform); Caja(r, new Vector3(0f, 0.4f, 0f), new Vector3(0.8f, 0.8f, 0.8f)); Guardar(r, true);
 
-    /// <summary>Opciones de un piso. Banderas: P = puerta a mitad del pasillo, O / E = habitaciones del lado oeste / este unidas
-    /// en un salón, M = decoración en espejo, A = apagón (casi todo el pasillo a oscuras).</summary>
-    class Def
-    {
-        public bool partido, salonO, salonE, espejo, apagon;
-        public float prob, aviso, vel, intMin, intMax, doble;
-        public Def(string banderas, float prob, float aviso, float vel, float intMin, float intMax, float doble)
+        // Palanca de puerta: el mismo modelo del interruptor, con piloto ámbar
+        r = new GameObject("INT_Palanca");
+        m = Modelo("INT_Interruptor", r.transform);
+        Caja(r, new Vector3(0f, -0.3f, -0.8f), new Vector3(1.6f, 2.2f, 1.4f), true);
+        var palanca = r.AddComponent<PalancaPuerta>();
+        palanca.palanca = m.transform.Find("Palanca");
+        palanca.puntoFoco = Vacio("Foco", r.transform, new Vector3(0f, 0f, -0.05f));
+        palanca.sonido = Audio(r, "palanca");
+        palanca.indicador = Luz(r.transform, new Vector3(0f, 0.28f, -0.14f), new Color(1f, 0.6f, 0.1f), 0.7f, 2.0f);
+        palanca.indicador.gameObject.name = "LuzIndicador";
+        Guardar(r);
+
+        // Teclado numérico
+        r = new GameObject("INT_Teclado");
+        Modelo("INT_Teclado", r.transform);
+        Caja(r, new Vector3(0f, -0.3f, -0.8f), new Vector3(1.4f, 2.2f, 1.4f), true);
+        var teclado = r.AddComponent<TecladoCodigo>();
+        teclado.puntoFoco = Vacio("Foco", r.transform, new Vector3(0f, 0f, -0.05f));
+        teclado.sonido = Audio(r, "tecla");
+        teclado.clipTecla = Clip("tecla");
+        teclado.clipError = Clip("codigo_error");
+        teclado.indicador = Luz(r.transform, new Vector3(0f, 0.1f, -0.12f), new Color(1f, 0.2f, 0.1f), 0.6f, 1.6f);
+        teclado.indicador.gameObject.name = "LuzIndicador";
+        Guardar(r);
+
+        // Nota con el código: tres huecos para los dígitos, que se llenan al sortear el código
+        r = new GameObject("INT_Nota");
+        Modelo("PRP_Nota", r.transform);
+        Caja(r, new Vector3(0f, -0.4f, -0.8f), new Vector3(1.4f, 2.2f, 1.4f), true);
+        var nota = r.AddComponent<NotaCodigo>();
+        nota.puntoFoco = Vacio("Foco", r.transform, new Vector3(0f, 0f, -0.05f));
+        var modeloDigitos = AssetDatabase.LoadAssetAtPath<GameObject>(DIR_MODELOS + "PRP_Digitos.fbx").transform;
+        nota.mallas = Enumerable.Range(0, 10).Select(i => modeloDigitos.Find("D" + i).GetComponent<MeshFilter>().sharedMesh).ToArray();
+        nota.huecos = new MeshFilter[3];
+        for (int i = 0; i < 3; i++)
         {
-            partido = banderas.Contains("P"); salonO = banderas.Contains("O"); salonE = banderas.Contains("E");
-            espejo = banderas.Contains("M"); apagon = banderas.Contains("A");
-            this.prob = prob; this.aviso = aviso; this.vel = vel; this.intMin = intMin; this.intMax = intMax; this.doble = doble;
+            var d = new GameObject("Digito_" + i);
+            d.transform.SetParent(r.transform, false);
+            d.transform.localPosition = new Vector3((i - 1) * 0.08f, -0.045f, -0.006f);
+            nota.huecos[i] = d.AddComponent<MeshFilter>();
+            d.AddComponent<MeshRenderer>().sharedMaterial = Mat("MAT_MetalOscuro");
         }
+        Guardar(r);
+
+        // Fusible suelto, con un brillo tenue para poder encontrarlo
+        r = new GameObject("INT_Fusible");
+        Modelo("INT_Fusible", r.transform);
+        Caja(r, new Vector3(0f, 1.0f, 0f), new Vector3(1.6f, 2.0f, 1.6f), true);
+        r.AddComponent<Fusible>().puntoFoco = Vacio("Foco", r.transform, new Vector3(0f, 0.03f, 0f));
+        Luz(r.transform, new Vector3(0f, 0.15f, 0f), new Color(1f, 0.75f, 0.3f), 0.5f, 1.2f).gameObject.name = "Brillo";
+        Guardar(r);
+
+        // Caja de fusibles: los tres fusibles ya están dentro, ocultos hasta que el jugador los coloca
+        r = new GameObject("INT_CajaFusibles");
+        Modelo("INT_CajaFusibles", r.transform);
+        Caja(r, new Vector3(0f, -0.4f, -0.8f), new Vector3(1.6f, 2.2f, 1.4f), true);
+        var cajaF = r.AddComponent<CajaFusibles>();
+        cajaF.puntoFoco = Vacio("Foco", r.transform, new Vector3(0f, 0f, -0.1f));
+        cajaF.sonido = Audio(r, "palanca");
+        cajaF.fusibles = new GameObject[3];
+        for (int i = 0; i < 3; i++)
+        {
+            var f = Modelo("INT_Fusible", r.transform);
+            f.name = "Fusible_" + i;
+            f.transform.localPosition = new Vector3((i - 1) * 0.13f + 0.026f, 0f, -0.19f);
+            f.transform.localRotation = Quaternion.Euler(0f, 0f, 90f);   // de pie dentro del portafusible
+            f.SetActive(false);
+            cajaF.fusibles[i] = f;
+        }
+        cajaF.indicador = Luz(r.transform, new Vector3(0f, 0.42f, -0.2f), new Color(1f, 0.2f, 0.1f), 0.6f, 1.6f);
+        cajaF.indicador.gameObject.name = "LuzIndicador";
+        Guardar(r);
     }
 
-    // banderas, probabilidad de aparición por puerta, segundos de aviso, velocidad (m/s), intervalo entre apariciones (s), probabilidad de doble pasada
-    static readonly Def[] NIVELES =
+    // ------------------------------------------------------------------ mapa de 10 habitaciones
+    // Ejes de los muros: dos columnas (oeste y este) por cinco filas. El recorrido va en zigzag:
+    //   fila 4 (norte):   9 -> 10 -> salida
+    //   fila 3:           8 <- 7
+    //   fila 2:           5 -> 6
+    //   fila 1:           4 <- 3
+    //   fila 0 (sur):     1 -> 2
+    static readonly float[] EJES_X = { 0.5f, 10.5f, 19.5f };
+    static readonly float[] EJES_Z = { 0.5f, 8.5f, 16.5f, 24.5f, 32.5f, 39.5f };
+    const float CARA = 0.235f;   // del eje de un muro a la cara del papel tapiz, para lo que va colgado
+
+    // Lo que no es muro liso. Clave: "H" + eje Z + columna (muro horizontal) o "V" + eje X + fila (muro vertical).
+    // Valor: "ranura:tipo" (V = ventana; D1 a D10 = puerta).
+    static readonly Dictionary<string, string> ESPECIALES = new Dictionary<string, string>
     {
-        new Def("",     0.30f, 4.0f, 13.0f, 60f, 90f, 0.00f),   // piso 1: plano del primer avance
-        new Def("M",    0.35f, 3.8f, 13.5f, 50f, 75f, 0.00f),
-        new Def("P",    0.40f, 3.6f, 14.0f, 45f, 65f, 0.00f),
-        new Def("OM",   0.45f, 3.4f, 14.5f, 40f, 60f, 0.10f),
-        new Def("PA",   0.50f, 3.2f, 15.0f, 35f, 52f, 0.15f),
-        new Def("E",    0.55f, 3.0f, 15.5f, 30f, 46f, 0.25f),
-        new Def("POM",  0.60f, 2.8f, 16.0f, 26f, 40f, 0.30f),
-        new Def("OEA",  0.68f, 2.6f, 16.5f, 22f, 34f, 0.40f),
-        new Def("PEMA", 0.76f, 2.4f, 17.0f, 18f, 28f, 0.50f),
-        new Def("POEA", 0.85f, 2.2f, 18.0f, 14f, 22f, 0.60f),
+        { "V10", "1:D1" }, { "H11", "2:D2" }, { "V11", "1:D3" }, { "H20", "1:D4" }, { "V12", "1:D5" },
+        { "H31", "2:D6" }, { "V13", "1:D7" }, { "H40", "1:D8" }, { "V14", "1:D9" }, { "H51", "3:D10" },
+        { "H00", "1:V,3:V" }, { "H01", "0:V" }, { "V04", "1:V" }, { "V23", "1:V" },
+    };
+
+    class DatosPuerta
+    {
+        public string numero, mensaje; public float angulo; public Cerradura cerradura; public bool placaAlReves, forzar; public int mecanismos;
+        public DatosPuerta(string numero, float angulo, bool placaAlReves, Cerradura cerradura = Cerradura.Ninguna, string mensaje = "", int mecanismos = 1, bool forzar = false)
+        { this.numero = numero; this.angulo = angulo; this.placaAlReves = placaAlReves; this.cerradura = cerradura; this.mensaje = mensaje; this.mecanismos = mecanismos; this.forzar = forzar; }
+    }
+
+    // id -> número, ángulo de apertura (hacia la habitación siguiente), placa del otro lado, qué la traba
+    static readonly Dictionary<string, DatosPuerta> PUERTAS = new Dictionary<string, DatosPuerta>
+    {
+        { "D1",  new DatosPuerta("001",  90f, true) },
+        { "D2",  new DatosPuerta("002", -90f, false, Cerradura.Llave) },
+        { "D3",  new DatosPuerta("003", -90f, false, Cerradura.Mecanismo, "Está trabada. Busca la palanca") },
+        { "D4",  new DatosPuerta("004", -90f, false) },
+        { "D5",  new DatosPuerta("005",  90f, true,  Cerradura.Mecanismo, "Tiene cerradura electrónica. Usa el teclado", 1, true) },
+        { "D6",  new DatosPuerta("006", -90f, false) },
+        { "D7",  new DatosPuerta("007", -90f, false, Cerradura.Mecanismo, "No tiene corriente. Revisa la caja de fusibles") },
+        { "D8",  new DatosPuerta("008", -90f, false, Cerradura.Llave) },
+        { "D9",  new DatosPuerta("009",  90f, true,  Cerradura.Mecanismo, "Está trabada. Hay dos palancas en esta habitación", 2) },
+        { "D10", new DatosPuerta("010", -90f, false, Cerradura.Mecanismo, "Tiene cerradura electrónica. Usa el teclado") },
     };
 
     struct Tramo { public bool v; public float c, a, b; public string esp; public Tramo(bool v, float c, float a, float b, string esp) { this.v = v; this.c = c; this.a = a; this.b = b; this.esp = esp; } }
 
-    /// <summary>Tramos de muro entre centros de pilares. esp = "ranura:tipo" (V = ventana; otro texto = id de puerta).</summary>
-    static List<Tramo> Tramos(Def d)
+    /// <summary>Tramos de muro entre centros de pilares: todos los ejes horizontales y verticales de la rejilla de habitaciones.</summary>
+    static List<Tramo> Tramos()
     {
-        var t = new List<Tramo>
-        {
-            new Tramo(false, 0.5f, 0.5f, 19.5f, "1:V,2:V,6:V,7:V"),   // fachada sur
-            new Tramo(false, 39.5f, 0.5f, 19.5f, "4:SAL"),            // muro norte con la salida
-            new Tramo(true, 0.5f, 0.5f, 10.5f, ""), new Tramo(true, 0.5f, 10.5f, 20.5f, "1:V,2:V"), new Tramo(true, 0.5f, 20.5f, 30.5f, "1:V,2:V"), new Tramo(true, 0.5f, 30.5f, 39.5f, ""),
-            new Tramo(true, 19.5f, 0.5f, 10.5f, ""), new Tramo(true, 19.5f, 10.5f, 20.5f, "1:V,2:V"), new Tramo(true, 19.5f, 20.5f, 30.5f, "1:V,2:V"), new Tramo(true, 19.5f, 30.5f, 39.5f, ""),
-            new Tramo(false, 10.5f, 0.5f, 6.5f, ""), new Tramo(false, 10.5f, 6.5f, 13.5f, "1:REC"), new Tramo(false, 10.5f, 13.5f, 19.5f, ""),
-            new Tramo(false, 30.5f, 0.5f, 6.5f, ""), new Tramo(false, 30.5f, 6.5f, 13.5f, "1:SEG"), new Tramo(false, 30.5f, 13.5f, 19.5f, ""),
-            new Tramo(true, 6.5f, 10.5f, 20.5f, "2:H1"), new Tramo(true, 6.5f, 20.5f, 30.5f, "2:H3"),
-            new Tramo(true, 13.5f, 10.5f, 20.5f, "2:H2"), new Tramo(true, 13.5f, 20.5f, 30.5f, "2:H4"),
-        };
-        if (!d.salonO) t.Add(new Tramo(false, 20.5f, 0.5f, 6.5f, ""));     // muro entre las dos habitaciones del oeste
-        if (!d.salonE) t.Add(new Tramo(false, 20.5f, 13.5f, 19.5f, ""));   // muro entre las dos habitaciones del este
-        if (d.partido) t.Add(new Tramo(false, 20.5f, 6.5f, 13.5f, "1:MED")); // puerta a mitad del pasillo
+        var t = new List<Tramo>();
+        string esp;
+        for (int j = 0; j < EJES_Z.Length; j++)
+            for (int c = 0; c < EJES_X.Length - 1; c++)
+            { ESPECIALES.TryGetValue("H" + j + c, out esp); t.Add(new Tramo(false, EJES_Z[j], EJES_X[c], EJES_X[c + 1], esp ?? "")); }
+        for (int i = 0; i < EJES_X.Length; i++)
+            for (int f = 0; f < EJES_Z.Length - 1; f++)
+            { ESPECIALES.TryGetValue("V" + i + f, out esp); t.Add(new Tramo(true, EJES_X[i], EJES_Z[f], EJES_Z[f + 1], esp ?? "")); }
         return t;
-    }
-
-    /// <summary>Número de la primera puerta principal del piso: las puertas principales se numeran de corrido en todo el juego.</summary>
-    static int PrimeraPuerta(int n)
-    {
-        int k = 1;
-        for (int i = 0; i < n - 1; i++) k += NIVELES[i].partido ? 4 : 3;
-        return k;
     }
 
     static GameObject Poner(string prefab, Transform padre, Vector3 pos, float rotY, string nombre = null)
@@ -422,55 +498,110 @@ public static class ConstructorNiveles
         return g;
     }
 
-    [MenuItem("UMBRAL/2. Construir los 10 niveles")]
-    public static void ConstruirTodos()
+    /// <summary>Sin sol, luz ambiental muy baja, niebla y el perfil de posprocesado.</summary>
+    static void Ambiente(Transform padre)
     {
-        if (Prefab("INT_Puerta") == null || Prefab("ENT_Espectro") == null) Preparar();
-        var escenas = new List<EditorBuildSettingsScene>();
-        for (int n = 1; n <= TOTAL_NIVELES; n++) { Construir(n); escenas.Add(new EditorBuildSettingsScene(Escena(n), true)); }
-        EditorBuildSettings.scenes = escenas.ToArray();
-        AssetDatabase.DeleteAsset(DIR_ESCENAS + "Nivel1_Hotel.unity");   // escena del prototipo de un solo nivel
-        EditorSceneManager.OpenScene(Escena(1));
-        Debug.Log("[UMBRAL] " + TOTAL_NIVELES + " niveles construidos.");
+        var volGo = new GameObject("Global Volume"); volGo.transform.SetParent(padre, false);
+        var vol = volGo.AddComponent<Volume>(); vol.isGlobal = true;
+        vol.sharedProfile = AssetDatabase.LoadAssetAtPath<VolumeProfile>("Assets/Settings/SampleSceneProfile.asset");
+        RenderSettings.skybox = null;
+        RenderSettings.ambientMode = AmbientMode.Flat;
+        RenderSettings.ambientLight = new Color(0.03f, 0.029f, 0.038f);
+        RenderSettings.reflectionIntensity = 0.3f;
+        RenderSettings.fog = true;
+        RenderSettings.fogMode = FogMode.ExponentialSquared;
+        RenderSettings.fogColor = new Color(0.012f, 0.012f, 0.018f);
+        RenderSettings.fogDensity = 0.03f;
     }
 
-    public static void Construir(int n)
+    [MenuItem("UMBRAL/2. Construir el juego (menú y hotel)")]
+    public static void ConstruirTodo()
     {
-        Def def = NIVELES[n - 1];
-        System.Func<float, float> MX = x => def.espejo ? 20f - x : x;      // espejo de la decoración respecto al eje del pasillo
-        System.Func<float, float> MR = r => def.espejo ? -r : r;
+        if (Prefab("INT_Puerta") == null || Prefab("ENT_Espectro") == null || Prefab("INT_Teclado") == null) Preparar();
+        ConstruirMenu();
+        ConstruirHotel();
+        EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ESCENA_MENU, true), new EditorBuildSettingsScene(ESCENA_HOTEL, true) };
+        // escenas de las versiones anteriores (un nivel por piso)
+        AssetDatabase.DeleteAsset(DIR_ESCENAS + "Nivel1_Hotel.unity");
+        for (int n = 1; n <= 10; n++) AssetDatabase.DeleteAsset(DIR_ESCENAS + "Nivel" + n.ToString("00") + ".unity");
+        EditorSceneManager.OpenScene(ESCENA_MENU);
+        Debug.Log("[UMBRAL] Juego construido: Menu y Hotel.");
+    }
+
+    // ------------------------------------------------------------------ pantalla de inicio
+    /// <summary>Un tramo de pasillo con el espectro en el vano del fondo. La interfaz la arma MenuInicio al iniciar.</summary>
+    public static void ConstruirMenu()
+    {
+        var escena = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+        var set = new GameObject("Pasillo").transform;
+        for (int k = 0; k < 8; k++)
+        {
+            float z = 2f * k;
+            Poner("EST_MuroEstandar", set, new Vector3(-2.25f, 0f, z), -90f);
+            Poner("EST_MuroEstandar", set, new Vector3(2.25f, 0f, z), -90f);
+            foreach (float x in new[] { -1f, 1f })
+            {
+                Poner("EST_Piso", set, new Vector3(x, -0.1f, z + 1f), k % 2 == 0 ? 0f : 90f);
+                Poner("EST_Techo", set, new Vector3(x, 3f, z + 1f), 0f);
+            }
+        }
+        for (int k = 0; k < 5; k++) Poner("PRP_Alfombra", set, new Vector3(0f, 0f, 1.5f + 3f * k), 90f);
+        // fondo: vano sin puerta, con el espectro esperando en la oscuridad
+        Poner("EST_MuroMedio", set, new Vector3(-2f, 0f, 16.25f), 0f);
+        Poner("EST_MuroVano", set, new Vector3(-1f, 0f, 16.25f), 0f);
+        Poner("EST_MarcoPuerta", set, new Vector3(-0.75f, 0f, 16.25f), 0f);
+        Poner("EST_MuroMedio", set, new Vector3(1f, 0f, 16.25f), 0f);
+        Poner("EST_MuroEstandar", set, new Vector3(-1f, 0f, -0.25f), 0f);
+        Poner("EST_MuroMedio", set, new Vector3(-2f, 0f, -0.25f), 0f);
+        Poner("EST_MuroMedio", set, new Vector3(1f, 0f, -0.25f), 0f);
+        Poner("INT_Closet", set, new Vector3(1.7f, 0f, 9f), 90f);
+        var lamparas = new List<LamparaPared>
+        {
+            Poner("INT_Lampara", set, new Vector3(-2f, 1.95f, 5f), -90f).GetComponent<LamparaPared>(),
+            Poner("INT_Lampara", set, new Vector3(2f, 1.95f, 11.5f), 90f).GetComponent<LamparaPared>(),
+        };
+        var espectro = Poner("ENT_Espectro", set, new Vector3(0f, 1.5f, 15.7f), 180f, "Espectro");
+
+        var camGo = new GameObject("CamaraMenu");
+        camGo.tag = "MainCamera";
+        camGo.transform.SetPositionAndRotation(new Vector3(0.9f, 1.55f, 1.6f), Quaternion.Euler(1.5f, -3.5f, 0f));
+        var cam = camGo.AddComponent<Camera>();
+        cam.nearClipPlane = 0.05f; cam.farClipPlane = 60f; cam.fieldOfView = 58f;
+        cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = Color.black;
+        camGo.AddComponent<AudioListener>();
+
+        var sistemas = new GameObject("Sistemas").transform;
+        var menu = new GameObject("Menu"); menu.transform.SetParent(sistemas, false);
+        var mi = menu.AddComponent<MenuInicio>();
+        mi.camara = camGo.transform;
+        mi.lamparas = lamparas.ToArray();
+        var ambiente = Audio(sistemas.gameObject, "ambiente_hotel", true, false, 0.45f, "Ambiente");
+        ambiente.playOnAwake = true;
+        Ambiente(sistemas);
+        EditorSceneManager.SaveScene(escena, ESCENA_MENU);
+    }
+
+    // ------------------------------------------------------------------ hotel
+    public static void ConstruirHotel()
+    {
         var escena = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
         var conteo = new SortedDictionary<string, int>();
         System.Action<string> contar = k => { int c; conteo.TryGetValue(k, out c); conteo[k] = c + 1; };
 
-        var nivel = new GameObject("Nivel" + n.ToString("00")).transform;
+        var nivel = new GameObject("Hotel").transform;
         var tEstructura = Vacio("Estructura", nivel, Vector3.zero);
         var tMuros = Vacio("Muros", tEstructura, Vector3.zero);
         var tPilares = Vacio("Pilares", tEstructura, Vector3.zero);
         var tPisos = Vacio("Pisos", tEstructura, Vector3.zero);
         var tTechos = Vacio("Techos", tEstructura, Vector3.zero);
-        var tInter = Vacio("Interactivos", nivel, Vector3.zero);
-        var tPuertas = Vacio("Puertas", tInter, Vector3.zero);
-        var tClosets = Vacio("Closets", tInter, Vector3.zero);
-        var tMesas = Vacio("MesasDeNoche", tInter, Vector3.zero);
-        var tLamparas = Vacio("Lamparas", tInter, Vector3.zero);
-        var tProps = Vacio("Props", nivel, Vector3.zero);
-
-        // --- puertas del piso: id -> número, ángulo de apertura (hacia la zona siguiente), con seguro, placa del otro lado
-        int num = PrimeraPuerta(n);
-        var datos = new Dictionary<string, object[]>();
-        datos["REC"] = new object[] { (num++).ToString("000"), -90f, false, false };
-        if (def.partido) datos["MED"] = new object[] { (num++).ToString("000"), -90f, false, false };
-        datos["SEG"] = new object[] { (num++).ToString("000"), -90f, true, false };
-        datos["SAL"] = new object[] { (num++).ToString("000"), -90f, false, false };
-        datos["H1"] = new object[] { (n * 100 + 1).ToString(), -90f, false, false };
-        datos["H3"] = new object[] { (n * 100 + 3).ToString(), -90f, false, false };
-        datos["H2"] = new object[] { (n * 100 + 2).ToString(), 90f, false, true };
-        datos["H4"] = new object[] { (n * 100 + 4).ToString(), 90f, false, true };
+        var tPuertas = Vacio("Puertas", nivel, Vector3.zero);
+        var cuartos = new Transform[11];
+        string[] nombres = { "", "Recepcion", "Dormitorio", "Salon", "CuartoDeServicio", "Oficina", "Guardarropa", "CuartoElectrico", "DormitorioDoble", "Biblioteca", "SalaFinal" };
+        for (int i = 1; i <= 10; i++) cuartos[i] = Vacio("Habitacion" + i.ToString("00") + "_" + nombres[i], nivel, Vector3.zero);
 
         // --- muros, marcos y puertas
         var puertas = new Dictionary<string, PuertaInteractiva>();
-        foreach (var t in Tramos(def))
+        foreach (var t in Tramos())
         {
             var esp = new Dictionary<int, string>();
             foreach (var par in t.esp.Split(new[] { ',' }, System.StringSplitOptions.RemoveEmptyEntries)) { var kv = par.Split(':'); esp[int.Parse(kv[0])] = kv[1]; }
@@ -487,20 +618,18 @@ public static class ConstructorNiveles
                 else
                 {
                     Poner("EST_MuroVano", tMuros, en(p), rot); contar("EST_MuroVano");
-                    Poner("EST_MarcoPuerta", tMuros, en(p) + dir * 0.25f, rot, "EST_MarcoPuerta_" + tipo); contar("EST_MarcoPuerta");
-                    var d = datos[tipo];
-                    puertas[tipo] = PonerPuerta(tPuertas, en(p) + dir * 0.4f, rot, (string)d[0], (float)d[1], (bool)d[2], (bool)d[3]);
+                    Poner("EST_MarcoPuerta", tMuros, en(p) + dir * 0.25f, rot, "EST_MarcoPuerta_" + PUERTAS[tipo].numero); contar("EST_MarcoPuerta");
+                    puertas[tipo] = PonerPuerta(tPuertas, en(p) + dir * 0.4f, rot, PUERTAS[tipo]);
                     contar("INT_Puerta"); contar("PRP_PlacaNumero");
                 }
                 p += 2f; k++;
             }
         }
+        var enOrden = Enumerable.Range(1, 10).Select(i => puertas["D" + i]).ToArray();
 
-        // --- pilares
-        foreach (float x in new[] { 0.5f, 6.5f, 13.5f, 19.5f })
-            foreach (float z in new[] { 10.5f, 20.5f, 30.5f }) { Poner("EST_Pilar", tPilares, new Vector3(x, 0f, z), 0f); contar("EST_Pilar"); }
-        foreach (float x in new[] { 0.5f, 19.5f })
-            foreach (float z in new[] { 0.5f, 39.5f }) { Poner("EST_Pilar", tPilares, new Vector3(x, 0f, z), 0f); contar("EST_Pilar"); }
+        // --- pilares en cada cruce de ejes
+        foreach (float x in EJES_X)
+            foreach (float z in EJES_Z) { Poner("EST_Pilar", tPilares, new Vector3(x, 0f, z), 0f); contar("EST_Pilar"); }
 
         // --- piso y techo (módulos de 2 x 2 m)
         for (int i = 0; i < 10; i++)
@@ -511,75 +640,154 @@ public static class ConstructorNiveles
             }
         Caja(tPisos.gameObject, new Vector3(10f, -0.05f, 20.5f), new Vector3(20f, 0.1f, 41f));
         Caja(tTechos.gameObject, new Vector3(10f, 3.05f, 20f), new Vector3(20f, 0.1f, 40f));
-        var barrera = Vacio("BarreraSalida", tEstructura, Vector3.zero).gameObject;
-        Caja(barrera, new Vector3(10f, 1.5f, 40.7f), new Vector3(6f, 3f, 0.2f));
-        Caja(barrera, new Vector3(8.6f, 1.5f, 40.2f), new Vector3(0.2f, 3f, 1f));
-        Caja(barrera, new Vector3(11.4f, 1.5f, 40.2f), new Vector3(0.2f, 3f, 1f));
+        var barrera = Vacio("BarreraSalida", tEstructura, Vector3.zero).gameObject;   // la salida (puerta 010) queda en x = 18
+        Caja(barrera, new Vector3(18f, 1.5f, 40.7f), new Vector3(6f, 3f, 0.2f));
+        Caja(barrera, new Vector3(16.6f, 1.5f, 40.2f), new Vector3(0.2f, 3f, 1f));
+        Caja(barrera, new Vector3(19.4f, 1.5f, 40.2f), new Vector3(0.2f, 3f, 1f));
 
-        // --- lámparas de pared: x, z, giro (sale hacia +X = -90, hacia -X = 90), zona (0 normal, 1 sala final, 2 pasillo que se apaga en los apagones)
-        float O = 0.75f, E = 19.25f, PO = 6.75f, PE = 13.25f;
-        var lamparas = new[]
+        // --- utilidades para amueblar. Giros de lo que va contra un muro: mira al sur = 0, al norte = 180, al este = -90, al oeste = 90
+        int cuarto = 1;
+        System.Func<string, float, float, float, float, GameObject> mueble = (prefab, x, z, rot, y) =>
+        { contar(prefab); return Poner(prefab, cuartos[cuarto], new Vector3(x, y, z), rot); };
+        System.Func<float, float, float, bool, LamparaPared> lampara = (x, z, rot, encendida) =>
         {
-            new[] { O, 3f, -90f, 0f }, new[] { O, 8.5f, -90f, 0f }, new[] { E, 3f, 90f, 0f }, new[] { E, 8.5f, 90f, 0f },          // recepción
-            new[] { PO, 13.5f, -90f, 0f }, new[] { PO, 21.6f, -90f, 2f }, new[] { PO, 23.8f, -90f, 2f },                           // pasillo oeste
-            new[] { PE, 18.5f, 90f, 2f }, new[] { PE, 21.6f, 90f, 2f }, new[] { PE, 28.5f, 90f, 0f },                              // pasillo este
-            new[] { O, 12.2f, -90f, 0f }, new[] { O, 22.2f, -90f, 0f }, new[] { E, 12.2f, 90f, 0f }, new[] { E, 22.2f, 90f, 0f },  // habitaciones
-            new[] { O, 32f, -90f, 1f }, new[] { O, 38f, -90f, 1f }, new[] { E, 36.5f, 90f, 1f }, new[] { E, 38f, 90f, 1f },        // sala final (apagadas)
+            var lp = mueble("INT_Lampara", x, z, rot, 1.95f).GetComponent<LamparaPared>();
+            if (!encendida) { lp.encendidaAlInicio = false; lp.gameObject.name = "INT_Lampara_Apagada"; }
+            return lp;
         };
-        var lamparasSala = new List<LamparaPared>();
-        foreach (var l in lamparas)
+        System.Action<float, float, float, int> mesaNoche = (x, z, rot, zona) =>
         {
-            var g = Poner("INT_Lampara", tLamparas, new Vector3(MX(l[0]), 1.95f, l[1]), MR(l[2])); contar("INT_Lampara");
-            var lp = g.GetComponent<LamparaPared>();
-            if (l[3] == 1f) { lp.encendidaAlInicio = false; lp.luz.intensity = 3.8f; lp.luz.range = 12f; lamparasSala.Add(lp); g.name = "INT_Lampara_SalaFinal"; }
-            else if (l[3] == 2f && def.apagon) { lp.encendidaAlInicio = false; g.name = "INT_Lampara_Fundida"; }
-        }
-
-        // --- clósets: x, z, giro (frente hacia +X = -90, hacia -X = 90, hacia -Z = 0)
-        var closets = new[]
-        {
-            new[] { 7.05f, 18.6f, -90f }, new[] { 7.05f, 29.0f, -90f }, new[] { 12.95f, 12.6f, 90f }, new[] { 12.95f, 22.6f, 90f },   // pasillo
-            new[] { 3.1f, 19.95f, 0f }, new[] { 16.9f, 19.95f, 0f }, new[] { 3.1f, 29.95f, 0f }, new[] { 16.9f, 29.95f, 0f },         // habitaciones
-            new[] { 1.05f, 34.6f, -90f }, new[] { 18.95f, 34.6f, 90f },                                                               // sala final
+            var m = mueble("INT_MesaNoche", x, z, rot, 0f).GetComponent<MesaDeNoche>();
+            m.zona = zona; m.gameObject.name = "INT_MesaNoche_Puerta" + zona.ToString("000");
         };
-        foreach (var c in closets)
+        System.Func<string, GameObject[], int, SeleccionAleatoria> alAzar = (nombre, lista, activos) =>
         {
-            float x = MX(c[0]);
-            // sin el muro que divide las habitaciones, el clóset que se apoyaba en él pasa delante del pilar de la pared exterior
-            bool sinMuro = Mathf.Approximately(c[1], 19.95f) && ((x < 6.5f && def.salonO) || (x > 13.5f && def.salonE));
-            if (sinMuro) Poner("INT_Closet", tClosets, new Vector3(x < 10f ? 1.3f : 18.7f, 0f, 20.5f), x < 10f ? -90f : 90f);
-            else Poner("INT_Closet", tClosets, new Vector3(x, 0f, c[1]), MR(c[2]));
-            contar("INT_Closet");
-        }
-
-        // --- habitaciones: cama y mesa de noche. La llave la reparte EstadoJuego al azar al cargar el piso.
-        int h = 0;
-        foreach (float yb in new[] { 11f, 21f })
+            var sel = new GameObject(nombre).AddComponent<SeleccionAleatoria>();
+            sel.transform.SetParent(cuartos[cuarto], false);
+            sel.candidatos = lista; sel.activos = activos;
+            return sel;
+        };
+        System.Func<float, float, float, PuertaInteractiva, GameObject> palancaEn = (x, z, rot, puerta) =>
         {
-            foreach (bool este in new[] { false, true })
-            {
-                string hab = (n * 100 + h + 1).ToString();
-                Poner("PRP_Cama", tProps, new Vector3(este ? 18.2f : 1.8f, 0f, yb + 4f), este ? 90f : -90f, "PRP_Cama_" + hab); contar("PRP_Cama");
-                Poner("INT_MesaNoche", tMesas, new Vector3(este ? 19f : 1f, 0f, yb + 5.25f), este ? 90f : -90f, "INT_MesaNoche_" + hab); contar("INT_MesaNoche");
-                h++;
-            }
-        }
+            var g = mueble("INT_Palanca", x, z, rot, 1.3f);
+            g.GetComponent<PalancaPuerta>().puerta = puerta;
+            return g;
+        };
+        System.Func<float, float, float, int, NotaCodigo> notaEn = (x, z, rot, posicion) =>
+        {
+            var n = mueble("INT_Nota", x, z, rot, 1.5f).GetComponent<NotaCodigo>();
+            n.posicion = posicion;
+            return n;
+        };
+        float O = EJES_X[0] + CARA, MO = EJES_X[1] - CARA, ME = EJES_X[1] + CARA, E = EJES_X[2] - CARA;   // caras de los muros verticales
+        System.Func<int, float> S = j => EJES_Z[j] + CARA;   // cara norte del muro del eje j (pared sur de la habitación)
+        System.Func<int, float> N = j => EJES_Z[j] - CARA;   // cara sur del muro del eje j (pared norte de la habitación)
 
-        // --- recepción y pasillo
-        Poner("PRP_Mostrador", tProps, new Vector3(MX(4.5f), 0f, 6.5f), 0f); contar("PRP_Mostrador");
-        Poner("PRP_Sofa", tProps, new Vector3(MX(15f), 0f, 3.45f), 180f); contar("PRP_Sofa");
-        Poner("PRP_Sofa", tProps, new Vector3(MX(15f), 0f, 7.05f), 0f); contar("PRP_Sofa");
-        Poner("PRP_Candelabro", tProps, new Vector3(MX(12.5f), 3f, 5.2f), 0f); contar("PRP_Candelabro");
-        for (int i = 0; i < 9; i++) { Poner("PRP_Alfombra", tProps, new Vector3(10f, 0f, 12.5f + 2f * i), 0f); contar("PRP_Alfombra"); }
+        // ===== 1. Recepción: zona segura. Puerta 001 sin seguro.
+        cuarto = 1;
+        mueble("PRP_Mostrador", 5f, 7.2f, 0f, 0f);
+        mueble("PRP_Sofa", 2.2f, 1.2f, 180f, 0f);
+        mueble("PRP_Estante", 0.95f, 6.2f, -90f, 0f);
+        mueble("PRP_Candelabro", 5.5f, 4f, 0f, 3f);
+        mueble("PRP_Alfombra", 7f, 4f, 0f, 0f);
+        lampara(0.75f, 2.4f, -90f, true); lampara(8.6f, 8.25f, 0f, true); lampara(6f, 0.75f, 180f, true);
 
-        // --- interruptor de la sala final
-        var inter = Poner("INT_Interruptor", tInter, new Vector3(MX(E), 1.3f, 32.6f), MR(90f)).GetComponent<InterruptorLuz>(); contar("INT_Interruptor");
-        inter.lamparas = lamparasSala.ToArray();
+        // ===== 2. Dormitorio: la llave de la puerta 002 está en uno de sus tres cajones.
+        cuarto = 2;
+        mueble("PRP_Cama", 18.2f, 2.2f, 90f, 0f); mueble("PRP_Cama", 18.2f, 6.0f, 90f, 0f);
+        mesaNoche(19f, 3.6f, 90f, 2); mesaNoche(19f, 4.6f, 90f, 2); mesaNoche(13.6f, 1.0f, 180f, 2);
+        mueble("INT_Closet", 12.2f, 7.95f, 0f, 0f); mueble("INT_Closet", 15.2f, 1.05f, 180f, 0f);
+        mueble("PRP_Alfombra", 15f, 4.5f, 0f, 0f);
+        lampara(17.5f, 0.75f, 180f, true); lampara(13.8f, 8.25f, 0f, true);
 
-        // --- jugador (Spawn Point del plano: 10.0, 2.6 mirando al norte)
+        // ===== 3. Salón: una palanca destraba la puerta 003. Aparece en uno de tres sitios.
+        cuarto = 3;
+        mueble("PRP_Sofa", 18.8f, 12.5f, 90f, 0f); mueble("PRP_Sofa", 15f, 15.8f, 0f, 0f);
+        mueble("PRP_Mesa", 15.5f, 12.8f, 0f, 0f);
+        mueble("PRP_Estante", 12.5f, 16.05f, 0f, 0f);
+        mueble("INT_Closet", 11.05f, 9.8f, -90f, 0f); mueble("INT_Closet", 18.95f, 9.7f, 90f, 0f);
+        mueble("PRP_Alfombra", 14.5f, 11f, 0f, 0f);
+        lampara(10.75f, 14.5f, -90f, true); lampara(18.2f, 8.75f, 180f, true);
+        alAzar("Palancas_003", new[] { palancaEn(13.2f, S(1), 180f, puertas["D3"]), palancaEn(E, 14.7f, 90f, puertas["D3"]), palancaEn(17.6f, N(2), 0f, puertas["D3"]) }, 1);
+
+        // ===== 4. Cuarto de servicio: a oscuras hasta encontrar el interruptor. Puerta 004 sin seguro.
+        cuarto = 4;
+        var lamparas4 = new[] { lampara(0.75f, 9.6f, -90f, false), lampara(4f, 8.75f, 180f, false), lampara(6.5f, 16.25f, 0f, false) };
+        foreach (var lp in lamparas4) { lp.luz.intensity = 3.4f; lp.luz.range = 10f; }
+        var interruptor = mueble("INT_Interruptor", 7.2f, S(1), 180f, 1.3f).GetComponent<InterruptorLuz>();
+        interruptor.lamparas = lamparas4;
+        mueble("PRP_Caja", 2.0f, 10.0f, 0f, 0f); mueble("PRP_Caja", 2.86f, 10.0f, 8f, 0f); mueble("PRP_Caja", 2.4f, 10.0f, 22f, 0.8f);
+        mueble("PRP_Caja", 6f, 13f, 0f, 0f); mueble("PRP_Caja", 6.9f, 13.2f, 15f, 0f); mueble("PRP_Caja", 9.4f, 15.6f, 0f, 0f);
+        mueble("PRP_Estante", 0.95f, 12.5f, -90f, 0f);
+        mueble("INT_Closet", 8.2f, 15.95f, 0f, 0f); mueble("INT_Closet", 1.05f, 14.8f, -90f, 0f);
+
+        // ===== 5. Oficina: teclado con código de 3 dígitos. La nota con el código aparece en uno de tres sitios.
+        cuarto = 5;
+        mueble("PRP_Mesa", 3f, 21.5f, 0f, 0f); mueble("PRP_Mesa", 7f, 18.4f, 0f, 0f);
+        mueble("PRP_Estante", 2.2f, 24.05f, 0f, 0f); mueble("PRP_Estante", 3.9f, 24.05f, 0f, 0f);
+        mueble("INT_Closet", 1.05f, 22.8f, -90f, 0f); mueble("INT_Closet", 9.95f, 17.6f, 90f, 0f);
+        mueble("PRP_Alfombra", 5.5f, 20.6f, 0f, 0f);
+        lampara(0.75f, 20.8f, -90f, true); lampara(6.2f, 16.75f, 180f, true);
+        var notas5 = new[] { notaEn(O, 19.2f, -90f, -1), notaEn(7.6f, N(3), 0f, -1), notaEn(8.6f, S(2), 180f, -1) };
+        alAzar("Notas_005", notas5.Select(n => n.gameObject).ToArray(), 1);
+        var teclado5 = mueble("INT_Teclado", MO, 21.2f, 90f, 1.45f).GetComponent<TecladoCodigo>();
+        teclado5.puerta = puertas["D5"]; teclado5.notas = notas5;
+
+        // ===== 6. Guardarropa: seis clósets. Al abrir la puerta 005 el espectro aparece siempre. Puerta 006 sin seguro.
+        cuarto = 6;
+        foreach (float x in new[] { 12.2f, 13.6f, 15.0f }) mueble("INT_Closet", x, 17.05f, 180f, 0f);
+        foreach (float z in new[] { 18.8f, 20.2f, 21.6f }) mueble("INT_Closet", 18.95f, z, 90f, 0f);
+        mueble("PRP_Sofa", 12.4f, 23.8f, 0f, 0f);
+        mueble("PRP_Estante", 10.95f, 22.6f, -90f, 0f);
+        mueble("PRP_Alfombra", 15f, 20.6f, 0f, 0f);
+        lampara(13.9f, 24.25f, 0f, true); lampara(17.6f, 16.75f, 180f, true);
+
+        // ===== 7. Cuarto eléctrico: la puerta 007 no tiene corriente. Hay tres fusibles repartidos en seis sitios posibles.
+        cuarto = 7;
+        mueble("PRP_Mesa", 16.2f, 30.9f, 0f, 0f);
+        mueble("PRP_Caja", 12.0f, 31.6f, 0f, 0f); mueble("PRP_Caja", 12.9f, 31.5f, 10f, 0f); mueble("PRP_Caja", 14.4f, 25.3f, 0f, 0f); mueble("PRP_Caja", 18.6f, 25.4f, 12f, 0f);
+        mueble("PRP_Estante", 14.2f, 32.05f, 0f, 0f);
+        mueble("INT_Closet", 18.95f, 30.4f, 90f, 0f); mueble("INT_Closet", 12.6f, 25.05f, 180f, 0f);
+        lampara(19.25f, 26.4f, 90f, true); lampara(17.8f, 32.25f, 0f, true);
+        var sitios = new[] { new Vector3(16.2f, 0.79f, 30.9f), new Vector3(12.0f, 0.81f, 31.6f), new Vector3(18.9f, 0.02f, 31.8f), new Vector3(18.6f, 0.81f, 25.4f), new Vector3(11.3f, 0.02f, 26.6f), new Vector3(17.4f, 0.02f, 25.2f) };
+        alAzar("Fusibles_007", sitios.Select((s, i) => mueble("INT_Fusible", s.x, s.z, 35f * i, s.y)).ToArray(), 3);
+        mueble("INT_CajaFusibles", ME, 29.5f, -90f, 1.4f).GetComponent<CajaFusibles>().puerta = puertas["D7"];
+
+        // ===== 8. Dormitorio doble: la llave de la puerta 008 está en uno de sus cuatro cajones.
+        cuarto = 8;
+        mueble("PRP_Cama", 1.8f, 26.5f, -90f, 0f); mueble("PRP_Cama", 1.8f, 30.3f, -90f, 0f);
+        mesaNoche(1f, 27.9f, -90f, 8); mesaNoche(1f, 28.9f, -90f, 8); mesaNoche(8.6f, 25.0f, 180f, 8); mesaNoche(10f, 30.9f, 90f, 8);
+        mueble("PRP_Sofa", 9.8f, 26.2f, 90f, 0f);
+        mueble("INT_Closet", 6.6f, 31.95f, 0f, 0f); mueble("INT_Closet", 5.8f, 25.05f, 180f, 0f);
+        mueble("PRP_Alfombra", 5.2f, 28.4f, 0f, 0f);
+        lampara(8.6f, 32.25f, 0f, true); lampara(3.4f, 24.75f, 180f, true);
+
+        // ===== 9. Biblioteca: casi a oscuras. La puerta 009 necesita dos palancas, que aparecen en dos de cuatro sitios.
+        cuarto = 9;
+        mueble("PRP_Estante", 2.6f, 35.4f, 90f, 0f); mueble("PRP_Estante", 6.2f, 34.6f, 90f, 0f); mueble("PRP_Estante", 6.2f, 37.6f, 90f, 0f);
+        mueble("PRP_Estante", 2.2f, 39.05f, 0f, 0f); mueble("PRP_Estante", 3.9f, 39.05f, 0f, 0f);
+        mueble("PRP_Mesa", 8.4f, 33.7f, 0f, 0f);
+        mueble("INT_Closet", 1.05f, 38.0f, -90f, 0f); mueble("INT_Closet", 9.95f, 38.4f, 90f, 0f);
+        lampara(10.25f, 34.3f, 90f, true); lampara(7f, 32.75f, 180f, false); lampara(7.2f, 39.25f, 0f, false);
+        alAzar("Palancas_009", new[] { palancaEn(O, 34.2f, -90f, puertas["D9"]), palancaEn(5.6f, N(5), 0f, puertas["D9"]), palancaEn(8.7f, N(5), 0f, puertas["D9"]), palancaEn(5.4f, S(4), 180f, puertas["D9"]) }, 2);
+
+        // ===== 10. Sala final: teclado con el código repartido en tres notas, un dígito en cada una.
+        cuarto = 10;
+        mueble("PRP_Mostrador", 14.5f, 34.9f, 0f, 0f);
+        mueble("PRP_Sofa", 13f, 38.8f, 0f, 0f);
+        mueble("PRP_Estante", 17.4f, 32.95f, 180f, 0f);
+        mueble("PRP_Candelabro", 15f, 36.6f, 0f, 3f);
+        mueble("INT_Closet", 12.3f, 33.05f, 180f, 0f); mueble("INT_Closet", 18.95f, 37.2f, 90f, 0f);
+        mueble("PRP_Alfombra", 15f, 37f, 0f, 0f);
+        lampara(13.6f, 32.75f, 180f, true); lampara(14.6f, 39.25f, 0f, true);
+        var teclado10 = mueble("INT_Teclado", 16.7f, N(5), 0f, 1.45f).GetComponent<TecladoCodigo>();
+        teclado10.puerta = puertas["D10"];
+        teclado10.notas = new[] { notaEn(ME, 34.0f, -90f, 0), notaEn(15.4f, S(4), 180f, 1), notaEn(E, 35.2f, 90f, 2) };
+
+        // --- jugador (Spawn Point: recepción, mirando a la puerta 001)
         var jugador = new GameObject("Jugador");
         jugador.tag = "Player";
-        jugador.transform.position = new Vector3(10f, 0.05f, 2.6f);
+        jugador.transform.SetPositionAndRotation(new Vector3(2.5f, 0.05f, 4f), Quaternion.Euler(0f, 90f, 0f));
         var cc = jugador.AddComponent<CharacterController>();
         cc.height = 1.8f; cc.radius = 0.3f; cc.center = new Vector3(0f, 0.9f, 0f); cc.stepOffset = 0.3f;
         var camGo = new GameObject("CamaraJugador");
@@ -602,69 +810,71 @@ public static class ConstructorNiveles
         var estado = new GameObject("EstadoJuego"); estado.transform.SetParent(sistemas, false);
         var estadoJuego = estado.AddComponent<EstadoJuego>();
         estadoJuego.jugador = ctrl;
-        estadoJuego.nivel = n;
-        estadoJuego.totalNiveles = TOTAL_NIVELES;
+        estadoJuego.puertas = enOrden;
+        // punto de entrada de cada habitación (para reaparecer tras ser atrapado) y hacia dónde mira el jugador
+        estadoJuego.reaparicion = new[]
+        {
+            new Vector3(2.5f, 0.05f, 4f), new Vector3(11.8f, 0.05f, 4f), new Vector3(16f, 0.05f, 9.8f), new Vector3(9.2f, 0.05f, 12f), new Vector3(4f, 0.05f, 17.8f),
+            new Vector3(11.8f, 0.05f, 20f), new Vector3(16f, 0.05f, 25.8f), new Vector3(9.2f, 0.05f, 28f), new Vector3(4f, 0.05f, 33.8f), new Vector3(11.8f, 0.05f, 36f),
+        };
+        estadoJuego.giroReaparicion = new[] { 90f, 90f, 0f, 270f, 0f, 90f, 0f, 270f, 0f, 90f };
         estadoJuego.susto = Audio(estado, "susto", false, false, 0.9f, "Susto");
+        estadoJuego.efectos = Audio(estado, "llave", false, false, 0.8f, "Efectos");
+        estadoJuego.clipFusible = Clip("llave");
         var ambiente = Audio(sistemas.gameObject, "ambiente_hotel", true, false, 0.35f, "Ambiente");
         ambiente.playOnAwake = true;
         var hud = new GameObject("HUD"); hud.transform.SetParent(sistemas, false); hud.AddComponent<HudJuego>();
 
         var meta = new GameObject("MetaNivel"); meta.transform.SetParent(sistemas, false);
-        meta.transform.position = new Vector3(10f, 1.25f, 40.05f);
+        meta.transform.position = new Vector3(18f, 1.25f, 40.05f);
         var zona = meta.AddComponent<BoxCollider>(); zona.size = new Vector3(1.6f, 2.5f, 0.6f); zona.isTrigger = true;
         meta.AddComponent<MetaNivel>().jugador = jugador.transform;
 
-        // --- espectro y su director: cada piso sube la frecuencia, la velocidad y acorta el aviso
+        // --- espectro: recorre las habitaciones abiertas siguiendo el mismo zigzag que el jugador
         var entidad = Poner("ENT_Espectro", sistemas, Vector3.zero, 0f, "Entidad");
         var dirGo = new GameObject("DirectorEntidad"); dirGo.transform.SetParent(sistemas, false);
         var director = dirGo.AddComponent<DirectorEntidad>();
         director.jugador = ctrl; director.camaraJugador = camGo.transform;
         director.entidad = entidad; director.visual = entidad.GetComponent<EntidadVisual>();
-        director.puertaRecepcion = puertas["REC"]; director.puertaSalaFinal = puertas["SEG"]; director.puertaSalida = puertas["SAL"];
-        director.probabilidadPorPuerta = def.prob; director.segundosDeAviso = def.aviso; director.velocidad = def.vel;
-        director.intervaloMin = def.intMin; director.intervaloMax = def.intMax; director.probabilidadDoble = def.doble;
+        director.puertas = enOrden;
+        float[,] pts =
+        {
+            { 11.3f, 4f }, { 16f, 4f }, { 16f, 8.5f }, { 16f, 12f }, { 10.5f, 12f }, { 4f, 12f }, { 4f, 16.5f }, { 4f, 20f }, { 10.5f, 20f }, { 16f, 20f },
+            { 16f, 24.5f }, { 16f, 28f }, { 10.5f, 28f }, { 4f, 28f }, { 4f, 32.5f }, { 4f, 36f }, { 10.5f, 36f }, { 18f, 36f }, { 18f, 38.6f },
+        };
+        director.ruta = Enumerable.Range(0, pts.GetLength(0)).Select(i => new Vector3(pts[i, 0], 1.5f, pts[i, 1])).ToArray();
+        director.entradaDeCuarto = new[] { 0, 2, 4, 6, 8, 10, 12, 14, 16 };   // habitaciones 2 a 10
+        director.finDeCuarto = new[] { 1, 3, 5, 7, 9, 11, 13, 15, 18 };
         director.rugido = Audio(dirGo, "entidad_rugido", true, false, 0.9f, "Rugido");
         director.zumbido = Audio(dirGo, "luz_zumbido", true, false, 0.45f, "Zumbido");
         entidad.SetActive(false);
 
-        // --- ambiente: sin sol, luz ambiental muy baja y niebla
-        var volGo = new GameObject("Global Volume"); volGo.transform.SetParent(sistemas, false);
-        var vol = volGo.AddComponent<Volume>(); vol.isGlobal = true;
-        vol.sharedProfile = AssetDatabase.LoadAssetAtPath<VolumeProfile>("Assets/Settings/SampleSceneProfile.asset");
-        RenderSettings.skybox = null;
-        RenderSettings.ambientMode = AmbientMode.Flat;
-        RenderSettings.ambientLight = new Color(0.03f, 0.029f, 0.038f);
-        RenderSettings.reflectionIntensity = 0.3f;
-        RenderSettings.fog = true;
-        RenderSettings.fogMode = FogMode.ExponentialSquared;
-        RenderSettings.fogColor = new Color(0.012f, 0.012f, 0.018f);
-        RenderSettings.fogDensity = 0.03f;
-
-        EditorSceneManager.SaveScene(escena, Escena(n));
-        Debug.Log("[UMBRAL] Nivel " + n + " construido. Conteo de assets: " + string.Join(", ", conteo.Select(kv => kv.Key + "=" + kv.Value)));
+        Ambiente(sistemas);
+        EditorSceneManager.SaveScene(escena, ESCENA_HOTEL);
+        Debug.Log("[UMBRAL] Hotel construido. Conteo de assets: " + string.Join(", ", conteo.Select(kv => kv.Key + "=" + kv.Value)));
     }
 
-    static PuertaInteractiva PonerPuerta(Transform padre, Vector3 pos, float rotY, string numero, float angulo, bool seguro, bool placaAlReves)
+    static PuertaInteractiva PonerPuerta(Transform padre, Vector3 pos, float rotY, DatosPuerta d)
     {
-        var g = Poner("INT_Puerta", padre, pos, rotY, "INT_Puerta_" + numero);
+        var g = Poner("INT_Puerta", padre, pos, rotY, "INT_Puerta_" + d.numero);
         var p = g.GetComponent<PuertaInteractiva>();
-        p.numero = numero; p.anguloApertura = angulo; p.tieneSeguro = seguro;
+        p.numero = d.numero; p.anguloApertura = d.angulo; p.cerradura = d.cerradura;
+        p.mensajeBloqueada = d.mensaje; p.mecanismosNecesarios = d.mecanismos; p.forzarEntidad = d.forzar;
         var placa = p.hoja.Find("PRP_PlacaNumero");
-        if (placaAlReves)
+        if (d.placaAlReves)
         {
             placa.localPosition = new Vector3(0.6f, 1.75f, 0.05f);
             placa.localRotation = Quaternion.Euler(0f, 180f, 0f);
         }
         var digitos = AssetDatabase.LoadAssetAtPath<GameObject>(DIR_MODELOS + "PRP_Digitos.fbx").transform;
-        float paso = numero.Length > 3 ? 0.062f : 0.075f;   // cuatro dígitos (piso 10) van más juntos para caber en la placa
-        for (int i = 0; i < numero.Length; i++)
+        for (int i = 0; i < d.numero.Length; i++)
         {
-            var src = digitos.Find("D" + numero[i]);
-            var d = new GameObject("Digito_" + numero[i]);
-            d.transform.SetParent(placa, false);
-            d.transform.localPosition = new Vector3((i - (numero.Length - 1) * 0.5f) * paso, -0.04f, -0.02f);
-            d.AddComponent<MeshFilter>().sharedMesh = src.GetComponent<MeshFilter>().sharedMesh;
-            d.AddComponent<MeshRenderer>().sharedMaterial = src.GetComponent<MeshRenderer>().sharedMaterial;
+            var src = digitos.Find("D" + d.numero[i]);
+            var dg = new GameObject("Digito_" + d.numero[i]);
+            dg.transform.SetParent(placa, false);
+            dg.transform.localPosition = new Vector3((i - (d.numero.Length - 1) * 0.5f) * 0.075f, -0.04f, -0.02f);
+            dg.AddComponent<MeshFilter>().sharedMesh = src.GetComponent<MeshFilter>().sharedMesh;
+            dg.AddComponent<MeshRenderer>().sharedMaterial = src.GetComponent<MeshRenderer>().sharedMaterial;
         }
         return p;
     }

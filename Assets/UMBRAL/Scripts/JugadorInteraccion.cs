@@ -17,6 +17,7 @@ public class JugadorInteraccion : MonoBehaviour
 
     void Update()
     {
+        if (EstadoJuego.I.Pausado) return;
         if (EstadoJuego.I.Terminado)
         {
             HudJuego.I.MostrarAviso("");

@@ -1,6 +1,6 @@
 
 # UMBRAL - Kit modular del Nivel 1 (Hotel). Unidades: metros. Ejes Blender: X ancho, Y profundidad, Z alto.
-# Genera los 20 assets de la matriz del primer avance (medidas, orígenes, UV y texturas) y el espectro, y los exporta a FBX para Unity.
+# Genera el kit modular (medidas, orígenes, UV y texturas), los muebles y mecanismos del mapa de 10 habitaciones y el espectro, y los exporta a FBX para Unity.
 import bpy, bmesh, math, os
 from mathutils import Matrix, Vector
 
@@ -260,6 +260,55 @@ def crear_kit():
     A["PRP_Candelabro"] = build("PRP_Candelabro", ca)
     A["PRP_Alfombra"] = build("PRP_Alfombra", [B(-1.5, 1.5, -1, 1, 0, 0.015, "MAT_AlfombraBorde"), B(-1.35, 1.35, -1, 1, 0.015, 0.02, "MAT_TelaRoja")])
     A["PRP_Digitos"] = digitos()
+
+    # ===== MAPA DE 10 HABITACIONES: muebles y mecanismos de las puertas =====
+    import random
+    rnd = random.Random(5)
+    # Estante 1.60 x 2.00 x 0.40 con libros: origen en el centro de la base, frente hacia -Y
+    e = [B(-0.80, -0.76, -0.2, 0.2, 0, 2.0, "MAT_MaderaOscura"), B(0.76, 0.80, -0.2, 0.2, 0, 2.0, "MAT_MaderaOscura"),
+         B(-0.76, 0.76, 0.17, 0.2, 0, 2.0, "MAT_Madera"), B(-0.80, 0.80, -0.2, 0.2, 1.96, 2.0, "MAT_MaderaOscura")]
+    lomos = ["MAT_TelaRoja", "MAT_AlfombraBorde", "MAT_MaderaOscura", "MAT_Sabana", "MAT_MetalOscuro"]
+    for i in range(5):
+        z = 0.06 + 0.46 * i
+        e.append(B(-0.76, 0.76, -0.2, 0.17, z, z + 0.04, "MAT_MaderaOscura"))
+        if i == 4: break
+        x = -0.73
+        while x < 0.66:
+            w = rnd.uniform(0.03, 0.07)
+            if rnd.random() < 0.82: e.append(B(x, x + w, rnd.uniform(-0.17, -0.12), 0.12, z + 0.04, z + 0.04 + rnd.uniform(0.22, 0.36), rnd.choice(lomos)))
+            x += w + 0.004
+    A["PRP_Estante"] = build("PRP_Estante", e)
+    # Mesa 1.60 x 0.78 x 0.80: origen en el centro de la base
+    me = [B(-0.80, 0.80, -0.40, 0.40, 0.74, 0.78, "MAT_MaderaOscura"), B(-0.74, 0.74, -0.34, 0.34, 0.64, 0.74, "MAT_Madera")]
+    for sx in (-1, 1):
+        for sy in (-1, 1): me.append(B(sx * 0.72 - 0.035, sx * 0.72 + 0.035, sy * 0.32 - 0.035, sy * 0.32 + 0.035, 0, 0.64, "MAT_MaderaOscura"))
+    A["PRP_Mesa"] = build("PRP_Mesa", me)
+    # Caja de madera 0.80 x 0.80 x 0.80 con refuerzos: origen en el centro de la base
+    cj = [B(-0.39, 0.39, -0.39, 0.39, 0.01, 0.79, "MAT_Madera")]
+    for z0 in (0.0, 0.72):
+        for s in (-1, 1):
+            cj.append(B(-0.40, 0.40, s * 0.40 - (0.08 if s > 0 else 0), s * 0.40 + (0.08 if s < 0 else 0), z0, z0 + 0.08, "MAT_MaderaOscura"))
+            cj.append(B(s * 0.40 - (0.08 if s > 0 else 0), s * 0.40 + (0.08 if s < 0 else 0), -0.40, 0.40, z0, z0 + 0.08, "MAT_MaderaOscura"))
+    for sx in (-1, 1):
+        for sy in (-1, 1): cj.append(B(sx * 0.40 - (0.08 if sx > 0 else 0), sx * 0.40 + (0.08 if sx < 0 else 0),
+                                       sy * 0.40 - (0.08 if sy > 0 else 0), sy * 0.40 + (0.08 if sy < 0 else 0), 0.08, 0.72, "MAT_MaderaOscura"))
+    A["PRP_Caja"] = build("PRP_Caja", cj)
+    # Teclado numérico de pared 0.22 x 0.32 x 0.05: origen en el centro de la cara trasera, sale hacia -Y
+    tk = [B(-0.11, 0.11, -0.05, 0, -0.16, 0.16, "MAT_MetalOscuro"), B(-0.085, 0.085, -0.055, -0.05, 0.07, 0.13, "MAT_Vidrio")]
+    for fila in range(4):
+        for col in (-1, 0, 1): tk.append(B(col * 0.06 - 0.02, col * 0.06 + 0.02, -0.062, -0.05, 0.005 - 0.05 * fila, 0.04 - 0.05 * fila, "MAT_Laton"))
+    A["INT_Teclado"] = build("INT_Teclado", tk)
+    # Caja de fusibles 0.50 x 0.70 x 0.15 con tres portafusibles y su tubo: origen en el centro de la cara trasera
+    cf = [B(-0.25, 0.25, -0.15, 0, -0.35, 0.35, "MAT_MetalOscuro"), B(-0.21, 0.21, -0.155, -0.15, -0.31, 0.31, "MAT_Laton"),
+          C(0, -0.06, 0.60, 0.03, 0.03, 0.50, "MAT_MetalOscuro", "Z", 10)]
+    for x in (-0.13, 0.0, 0.13):
+        cf += [B(x - 0.04, x + 0.04, -0.175, -0.155, 0.085, 0.125, "MAT_MetalOscuro"), B(x - 0.04, x + 0.04, -0.175, -0.155, -0.125, -0.085, "MAT_MetalOscuro")]
+    A["INT_CajaFusibles"] = build("INT_CajaFusibles", cf)
+    # Fusible 0.14 x 0.05: acostado sobre el eje X, origen en el centro de la base
+    A["INT_Fusible"] = build("INT_Fusible", [C(0, 0, 0.026, 0.020, 0.020, 0.10, "MAT_Cera", "X", 10),
+          C(-0.055, 0, 0.026, 0.026, 0.026, 0.03, "MAT_Laton", "X", 10), C(0.055, 0, 0.026, 0.026, 0.026, 0.03, "MAT_Laton", "X", 10)])
+    # Nota de papel 0.30 x 0.21 clavada a la pared: origen en el centro de la cara trasera
+    A["PRP_Nota"] = build("PRP_Nota", [B(-0.15, 0.15, -0.004, 0, -0.105, 0.105, "MAT_Sabana"), C(0, -0.008, 0.085, 0.01, 0.01, 0.012, "MAT_TelaRoja", "Y", 8)])
     A["ENT_Espectro"] = crear_entidad()
     return A
 

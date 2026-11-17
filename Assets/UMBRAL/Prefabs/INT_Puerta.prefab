@@ -213,10 +213,14 @@ MonoBehaviour:
   areaDeteccion: {fileID: 4625815898866149364}
   sonido: {fileID: 1466862903974794962}
   sonidoCerrada: {fileID: 8300000, guid: 39e63d0598793594fac6182b5a21e29f, type: 3}
+  sonidoDesbloqueo: {fileID: 8300000, guid: 3920ce551b3f0b245b22646dad3b45e6, type: 3}
   numero: 001
   anguloApertura: 90
   duracion: 0.6
-  tieneSeguro: 0
+  cerradura: 0
+  mecanismosNecesarios: 1
+  mensajeBloqueada: "Est\xE1 trabada"
+  forzarEntidad: 0
   alAbrir:
     m_PersistentCalls:
       m_Calls: []

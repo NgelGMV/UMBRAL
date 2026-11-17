@@ -1,12 +1,13 @@
 using System.Collections;
 using UnityEngine;
 
-/// <summary>Mesa de noche con cajón. Al iniciar cada piso, EstadoJuego guarda la llave en una de ellas al azar.</summary>
+/// <summary>Mesa de noche con cajón. Al iniciar, EstadoJuego guarda la llave de cada puerta en un cajón al azar de su zona.</summary>
 public class MesaDeNoche : Interactuable
 {
     public Transform cajon;
     public GameObject llave;
     public bool contieneLlave;
+    public int zona;                 // número de la puerta que abre su llave (0 = este cajón nunca guarda llave)
     public float recorrido = 0.28f;
     public AudioSource sonido;
     public AudioClip sonidoLlave;
